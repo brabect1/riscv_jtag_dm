@@ -117,16 +117,6 @@ module sirv_debug_module
 
   // This is to reset Debug module's logic, the debug module have same clock domain
   // as the main domain, so just use the same reset.
-//---->>>>
-//  wire dm_rst;
-// sirv_ResetCatchAndSync_2 u_dm_ResetCatchAndSync_2_1 (
-//    .test_mode(test_mode),
-//    .clock(hfclk),// Use same clock as main domain
-//    .reset(corerst),
-//    .io_sync_reset(dm_rst)
-//  );
-//
-//  assign dm_rst_n = ~dm_rst;
   reg[19:0] sync_dmrst;
 
   always @(posedge hfclk or posedge corerst) begin: p_sync_dmrst
@@ -138,7 +128,6 @@ module sirv_debug_module
   end: p_sync_dmrst
 
   assign dm_rst_n = test_mode ? ~corerst : sync_dmrst[0];
-//<<<<----
 
   //This is to reset the JTAG_CLK relevant logics, since the chip does not
   //  have the JTAG_RST used really, so we need to use the global chip reset to reset
@@ -146,13 +135,6 @@ module sirv_debug_module
   wire jtag_TCK;
   wire jtag_reset;
 
-//---->>>>
-// sirv_ResetCatchAndSync u_jtag_ResetCatchAndSync_3_1 (
-//    .test_mode(test_mode),
-//    .clock(jtag_TCK),
-//    .reset(corerst),
-//    .io_sync_reset(jtag_reset)
-//  );
 
   reg[2:0] sync_corerst;
 
@@ -165,7 +147,6 @@ module sirv_debug_module
   end: p_sync_corerst
 
   assign jtag_reset = test_mode ? corerst : sync_corerst[0];
-//<<<<----
 
   wire dm_clk = hfclk;// Currently Debug Module have same clock domain as core
 
@@ -175,54 +156,12 @@ module sirv_debug_module
   wire jtag_TRST;
   wire jtag_DRV_TDO;
 
-//---->>>>
   assign jtag_TCK = io_pads_jtag_TCK_i_ival;
   assign jtag_TRST = io_pads_jtag_TRST_n_i_ival;
   assign jtag_TDI = io_pads_jtag_TDI_i_ival;
   assign jtag_TMS = io_pads_jtag_TMS_i_ival;
   assign io_pads_jtag_TDO_o_oe = jtag_DRV_TDO;
   assign io_pads_jtag_TDO_o_oval = jtag_TDO;
-//  sirv_jtaggpioport u_jtag_pins (
-//    .clock(1'b0),
-//    .reset(1'b1),
-//    .io_jtag_TCK(jtag_TCK),
-//    .io_jtag_TMS(jtag_TMS),
-//    .io_jtag_TDI(jtag_TDI),
-//    .io_jtag_TDO(jtag_TDO),
-//    .io_jtag_TRST(jtag_TRST),
-//    .io_jtag_DRV_TDO(jtag_DRV_TDO),
-//    .io_pins_TCK_i_ival(io_pads_jtag_TCK_i_ival),
-//    .io_pins_TCK_o_oval(io_pads_jtag_TCK_o_oval),
-//    .io_pins_TCK_o_oe(io_pads_jtag_TCK_o_oe),
-//    .io_pins_TCK_o_ie(io_pads_jtag_TCK_o_ie),
-//    .io_pins_TCK_o_pue(io_pads_jtag_TCK_o_pue),
-//    .io_pins_TCK_o_ds(io_pads_jtag_TCK_o_ds),
-//    .io_pins_TMS_i_ival(io_pads_jtag_TMS_i_ival),
-//    .io_pins_TMS_o_oval(io_pads_jtag_TMS_o_oval),
-//    .io_pins_TMS_o_oe(io_pads_jtag_TMS_o_oe),
-//    .io_pins_TMS_o_ie(io_pads_jtag_TMS_o_ie),
-//    .io_pins_TMS_o_pue(io_pads_jtag_TMS_o_pue),
-//    .io_pins_TMS_o_ds(io_pads_jtag_TMS_o_ds),
-//    .io_pins_TDI_i_ival(io_pads_jtag_TDI_i_ival),
-//    .io_pins_TDI_o_oval(io_pads_jtag_TDI_o_oval),
-//    .io_pins_TDI_o_oe(io_pads_jtag_TDI_o_oe),
-//    .io_pins_TDI_o_ie(io_pads_jtag_TDI_o_ie),
-//    .io_pins_TDI_o_pue(io_pads_jtag_TDI_o_pue),
-//    .io_pins_TDI_o_ds(io_pads_jtag_TDI_o_ds),
-//    .io_pins_TDO_i_ival(io_pads_jtag_TDO_i_ival),
-//    .io_pins_TDO_o_oval(io_pads_jtag_TDO_o_oval),
-//    .io_pins_TDO_o_oe(io_pads_jtag_TDO_o_oe),
-//    .io_pins_TDO_o_ie(io_pads_jtag_TDO_o_ie),
-//    .io_pins_TDO_o_pue(io_pads_jtag_TDO_o_pue),
-//    .io_pins_TDO_o_ds(io_pads_jtag_TDO_o_ds),
-//    .io_pins_TRST_n_i_ival(io_pads_jtag_TRST_n_i_ival),
-//    .io_pins_TRST_n_o_oval(io_pads_jtag_TRST_n_o_oval),
-//    .io_pins_TRST_n_o_oe(io_pads_jtag_TRST_n_o_oe),
-//    .io_pins_TRST_n_o_ie(io_pads_jtag_TRST_n_o_ie),
-//    .io_pins_TRST_n_o_pue(io_pads_jtag_TRST_n_o_pue),
-//    .io_pins_TRST_n_o_ds(io_pads_jtag_TRST_n_o_ds)
-//  );
-//<<<<----
 
   sirv_debug_csr # (
           .PC_SIZE(PC_SIZE)
@@ -374,8 +313,6 @@ module sirv_debug_module
   wire [33:0] dminfo_r;
   wire [33:0] dmcontrol_r;
 
-//  wire [HART_NUM-1:0] dm_haltnot_r;
-//  wire [HART_NUM-1:0] dm_debint_r;
   reg [HART_NUM-1:0] dm_haltnot_r;
   reg [HART_NUM-1:0] dm_debint_r;
 
@@ -409,21 +346,6 @@ module sirv_debug_module
   assign i_dtm_resp_valid   = i_dtm_req_condi & i_dtm_req_valid;
 
 
-  // DMINFORdData_reserved0 = 2'h0;
-  // DMINFORdData_abussize = 7'h0;
-  // DMINFORdData_serialcount = 4'h0;
-  // DMINFORdData_access128 = 1'h0;
-  // DMINFORdData_access64 = 1'h0;
-  // DMINFORdData_access32 = 1'h0;
-  // DMINFORdData_access16 = 1'h0;
-  // DMINFORdData_accesss8 = 1'h0;
-  // DMINFORdData_dramsize = 6'h6;
-  // DMINFORdData_haltsum = 1'h0;
-  // DMINFORdData_reserved1 = 3'h0;
-  // DMINFORdData_authenticated = 1'h1;
-  // DMINFORdData_authbusy = 1'h0;
-  // DMINFORdData_authtype = 2'h0;
-  // DMINFORdData_version = 2'h1;
   assign dminfo_r[33:16] = 18'b0;
   assign dminfo_r[15:10] = 6'h6;
   assign dminfo_r[9:6]   = 4'b0;
@@ -432,7 +354,6 @@ module sirv_debug_module
   assign dminfo_r[1:0]   = 2'h1;
 
 
-//  wire [HART_ID_W-1:0] dm_hartid_r;
   reg[HART_ID_W-1:0] dm_hartid_r;
 
   wire [1:0] dm_debint_arr  = {1'b0,dm_debint_r };
@@ -453,17 +374,12 @@ module sirv_debug_module
 
   wire dtm_access_dbgram_ena    = i_dtm_req_hsked & dtm_req_sel_dbgram;
 
-//---->>>>
-//  wire dm_hartid_ena = dtm_wr_hartid_ena;
-//  wire [HART_ID_W-1:0] dm_hartid_nxt = dtm_req_bits_data[HART_ID_W+2-1:2];
-//  sirv_gnrl_dfflr #(HART_ID_W) dm_hartid_dfflr (dm_hartid_ena, dm_hartid_nxt, dm_hartid_r, dm_clk, dm_rst_n);
   always @(posedge dm_clk or negedge dm_rst_n) begin: p_dm_hartid
       if (!dm_rst_n)
           dm_hartid_r <= {HART_ID_W{1'b0}};
       else if (dtm_wr_hartid_ena)
           dm_hartid_r <= dtm_req_bits_data[HART_ID_W+2-1:2];
   end: p_dm_hartid
-//<<<<----
 
 
   //////////////////////////////////////////////////////////////
@@ -490,11 +406,6 @@ module sirv_debug_module
 
   assign icb_access_dbgram_ena = i_icb_cmd_hsked & icb_sel_dbgram;
 
-//---->>>>
-//  wire cleardebint_ena = icb_wr_cleardebint_ena;
-//  wire [HART_ID_W-1:0] cleardebint_r;
-//  wire [HART_ID_W-1:0] cleardebint_nxt = i_icb_cmd_wdata[HART_ID_W-1:0];
-//  sirv_gnrl_dfflr #(HART_ID_W) cleardebint_dfflr (cleardebint_ena, cleardebint_nxt, cleardebint_r, dm_clk, dm_rst_n);
   reg[HART_ID_W-1:0] cleardebint_r;
   always @(posedge dm_clk or negedge dm_rst_n) begin: p_cleardebint
       if (!dm_rst_n)
@@ -502,13 +413,7 @@ module sirv_debug_module
       else if (icb_wr_cleardebint_ena)
           cleardebint_r <= i_icb_cmd_wdata[HART_ID_W-1:0];
   end: p_cleardebint
-//<<<<----
 
-//---->>>>
-//  wire sethaltnot_ena = icb_wr_sethaltnot_ena;
-//  wire [HART_ID_W-1:0] sethaltnot_r;
-//  wire [HART_ID_W-1:0] sethaltnot_nxt = i_icb_cmd_wdata[HART_ID_W-1:0];
-//  sirv_gnrl_dfflr #(HART_ID_W) sethaltnot_dfflr (sethaltnot_ena, sethaltnot_nxt, sethaltnot_r, dm_clk, dm_rst_n);
   reg[HART_ID_W-1:0] sethaltnot_r;
   always @(posedge dm_clk or negedge dm_rst_n) begin: p_sethaltnot
       if (!dm_rst_n)
@@ -516,7 +421,6 @@ module sirv_debug_module
       else if (icb_wr_sethaltnot_ena)
           sethaltnot_r <= i_icb_cmd_wdata[HART_ID_W-1:0];
   end: p_sethaltnot
-//<<<<----
 
 
   assign i_icb_rsp_valid = i_icb_cmd_valid;// Just directly pass back the valid in 0 cycle
@@ -534,10 +438,6 @@ module sirv_debug_module
      .rom_addr (i_icb_cmd_addr[7-1:2]),
      .rom_dout (rom_dout)
    );
-  //sirv_debug_rom_64 u_sirv_debug_rom_64(
-  //  .rom_addr (i_icb_cmd_addr[8-1:2]),
-  //  .rom_dout (rom_dout)
-  //);
 
   wire         dram_cs   = dtm_access_dbgram_ena | icb_access_dbgram_ena;
   wire [ 2:0]  dram_addr = dtm_access_dbgram_ena ? dtm_req_bits_addr[2:0] : i_icb_cmd_addr[4:2];
@@ -555,8 +455,6 @@ module sirv_debug_module
 
   wire [HART_NUM-1:0] dm_haltnot_set;
   wire [HART_NUM-1:0] dm_haltnot_clr;
-//  wire [HART_NUM-1:0] dm_haltnot_ena;
-//  wire [HART_NUM-1:0] dm_haltnot_nxt;
 
   wire [HART_NUM-1:0] dm_debint_set;
   wire [HART_NUM-1:0] dm_debint_clr;
@@ -565,7 +463,7 @@ module sirv_debug_module
 
   genvar i;
   generate
-    for(i = 0; i < HART_NUM; i = i+1)//{
+    for(i = 0; i < HART_NUM; i = i+1)
     begin:dm_halt_int_gen
 
         // The haltnot will be set by system bus set its ID to sethaltnot_r
@@ -573,35 +471,25 @@ module sirv_debug_module
         // The haltnot will be cleared by DTM write 0 to haltnot
       assign dm_haltnot_clr[i] = dtm_wr_haltnot_ena & (dm_hartid_r == i[HART_ID_W-1:0]);
 
-//---->>>>
-//      assign dm_haltnot_ena[i] = dm_haltnot_set[i] | dm_haltnot_clr[i];
-//      assign dm_haltnot_nxt[i] = dm_haltnot_set[i] | (~dm_haltnot_clr[i]);
-//      sirv_gnrl_dfflr #(1) dm_haltnot_dfflr (dm_haltnot_ena[i], dm_haltnot_nxt[i], dm_haltnot_r[i], dm_clk, dm_rst_n);
       always @(posedge dm_clk or negedge dm_rst_n) begin: p_dm_haltnot
           if (!dm_rst_n)
               dm_haltnot_r[i] <= 1'b0;
           else if (dm_haltnot_set[i] | dm_haltnot_clr[i])
               dm_haltnot_r[i] <= dm_haltnot_set[i] | (~dm_haltnot_clr[i]);
       end: p_dm_haltnot
-//<<<<----
 
       // The debug intr will be set by DTM write 1 to interrupt
       assign dm_debint_set[i] = dtm_wr_interrupt_ena & (dm_hartid_r == i[HART_ID_W-1:0]);
       // The debug intr will be clear by system bus set its ID to cleardebint_r
       assign dm_debint_clr[i] = icb_wr_cleardebint_ena & (i_icb_cmd_wdata[HART_ID_W-1:0] == i[HART_ID_W-1:0]);
 
-//---->>>>
-//      assign dm_debint_ena[i] = dm_debint_set[i] | dm_debint_clr[i];
-//      assign dm_debint_nxt[i] = dm_debint_set[i] | (~dm_debint_clr[i]);
-//      sirv_gnrl_dfflr #(1) dm_debint_dfflr  ( dm_debint_ena[i],  dm_debint_nxt[i],  dm_debint_r[i], dm_clk, dm_rst_n);
       always @(posedge dm_clk or negedge dm_rst_n) begin: p_dm_debint
           if (!dm_rst_n)
               dm_debint_r[i] <= 1'b0;
           else if (dm_debint_set[i] | dm_debint_clr[i])
               dm_debint_r[i] <= dm_debint_set[i] | (~dm_debint_clr[i]);
       end: p_dm_debint
-//<<<<----
-    end//}
+    end
   endgenerate
 
   assign o_dbg_irq = dm_debint_r;

@@ -74,15 +74,7 @@ module sirv_debug_csr #(
 
 
 // Implement DPC reg
-//---->>>>
   reg [PC_SIZE-1:0] dpc_r;
-//  wire dpc_ena = wr_dpc_ena | cmt_dpc_ena;
-//  wire [PC_SIZE-1:0] dpc_nxt;
-//  assign dpc_nxt[PC_SIZE-1:1] =
-//       cmt_dpc_ena ? cmt_dpc[PC_SIZE-1:1]
-//                   : wr_csr_nxt[PC_SIZE-1:1];
-//  assign dpc_nxt[0] = 1'b0;
-//  sirv_gnrl_dfflr #(PC_SIZE) dpc_dfflr (dpc_ena, dpc_nxt, dpc_r, clk, rst_n);
   always @(posedge clk or negedge rst_n) begin: p_dpc_r
       if (!rst_n)
           dpc_r <= {PC_SIZE{1'b0}};
@@ -91,34 +83,21 @@ module sirv_debug_csr #(
       else if (wr_dpc_ena)
           dpc_r[PC_SIZE-1:1] <= wr_csr_nxt[PC_SIZE-1:1];
   end: p_dpc_r
-//<<<<----
 
 // Implement Dbg Scratch reg
-//---->>>>
   reg [31:0] dscratch_r;
-//  wire dscratch_ena = wr_dscratch_ena;
-//  wire [32-1:0] dscratch_nxt;
-//  assign dscratch_nxt = wr_csr_nxt;
-//  sirv_gnrl_dfflr #(32) dscratch_dfflr (dscratch_ena, dscratch_nxt, dscratch_r, clk, rst_n);
   always @(posedge clk or negedge rst_n) begin: p_dscratch_r
       if (!rst_n)
           dscratch_r <= {32{1'b0}};
       else if (wr_dscratch_ena)
           dscratch_r <= wr_csr_nxt;
   end: p_dscratch_r
-//<<<<----
 
   // We dont support the HW Trigger Module yet now
 
 // Implement dcsr reg
     //
     // The ndreset field
-//---->>>>
-//  wire ndreset_ena = wr_dcsr_ena & wr_csr_nxt[29];
-//  wire ndreset_nxt;
-//  wire ndreset_r;
-//  assign ndreset_nxt = wr_csr_nxt[29];
-//  sirv_gnrl_dfflr #(1) ndreset_dfflr (ndreset_ena, ndreset_nxt, ndreset_r, clk, rst_n);
   reg ndreset_r;
   always @(posedge clk or negedge rst_n) begin: p_ndreset_r
       if (!rst_n)
@@ -126,16 +105,9 @@ module sirv_debug_csr #(
       else if (wr_dcsr_ena & wr_csr_nxt[29])
           ndreset_r <= 1'b1;
   end: p_ndreset_r
-//<<<<----
   // This bit is not used as rocket impelmentation
     //
     // The fullreset field
-//---->>>>
-//  wire fullreset_ena = wr_dcsr_ena & wr_csr_nxt[28];
-//  wire fullreset_nxt;
-//  wire fullreset_r;
-//  assign fullreset_nxt = wr_csr_nxt[28];
-//  sirv_gnrl_dfflr #(1) fullreset_dfflr (fullreset_ena, fullreset_nxt, fullreset_r, clk, rst_n);
   reg fullreset_r;
   always @(posedge clk or negedge rst_n) begin: p_fullreset_r
       if (!rst_n)
@@ -143,15 +115,9 @@ module sirv_debug_csr #(
       else if (wr_dcsr_ena & wr_csr_nxt[28])
           fullreset_r <= 1'b1;
   end: p_fullreset_r
-//<<<<----
   // This bit is not used as rocket impelmentation
     //
     // The cause field
-//---->>>>
-//  wire dcause_ena = cmt_dcause_ena;
-//  wire [3-1:0] dcause_r;
-//  wire [3-1:0] dcause_nxt = cmt_dcause;
-//  sirv_gnrl_dfflr #(3) dcause_dfflr (dcause_ena, dcause_nxt, dcause_r, clk, rst_n);
   reg [2:0] dcause_r;
   always @(posedge clk or negedge rst_n) begin: p_dcause_r
       if (!rst_n)
@@ -159,15 +125,8 @@ module sirv_debug_csr #(
       else if (cmt_dcause_ena)
           dcause_r <= cmt_dcause;
   end: p_dcause_r
-//<<<<----
     //
     // The halt field
-//---->>>>
-//  wire halt_ena = wr_dcsr_ena;
-//  wire halt_nxt;
-//  wire halt_r;
-//  assign halt_nxt = wr_csr_nxt[3];
-//  sirv_gnrl_dfflr #(1) halt_dfflr (halt_ena, halt_nxt, halt_r, clk, rst_n);
   reg halt_r;
   always @(posedge clk or negedge rst_n) begin: p_halt_r
       if (!rst_n)
@@ -175,15 +134,8 @@ module sirv_debug_csr #(
       else if (wr_dcsr_ena)
           halt_r <= wr_csr_nxt[3];
   end: p_halt_r
-//<<<<----
     //
     // The step field
-//---->>>>
-//  wire step_ena = wr_dcsr_ena;
-//  wire step_nxt;
-//  wire step_r;
-//  assign step_nxt = wr_csr_nxt[2];
-//  sirv_gnrl_dfflr #(1) step_dfflr (step_ena, step_nxt, step_r, clk, rst_n);
   reg step_r;
   always @(posedge clk or negedge rst_n) begin: p_step_r
       if (!rst_n)
@@ -191,15 +143,8 @@ module sirv_debug_csr #(
       else if (wr_dcsr_ena)
           step_r <= wr_csr_nxt[2];
   end: p_step_r
-//<<<<----
     //
     // The ebreakm field
-//---->>>>
-//  wire ebreakm_ena = wr_dcsr_ena;
-//  wire ebreakm_nxt;
-//  wire ebreakm_r;
-//  assign ebreakm_nxt = wr_csr_nxt[15];
-//  sirv_gnrl_dfflr #(1) ebreakm_dfflr (ebreakm_ena, ebreakm_nxt, ebreakm_r, clk, rst_n);
   reg ebreakm_r;
   always @(posedge clk or negedge rst_n) begin: p_ebreakm_r
       if (!rst_n)
@@ -207,21 +152,6 @@ module sirv_debug_csr #(
       else if (wr_dcsr_ena)
           ebreakm_r <= wr_csr_nxt[15];
   end: p_ebreakm_r
-//<<<<----
-    //
-  //  // The stopcycle field
-  //wire stopcycle_ena = wr_dcsr_ena;
-  //wire stopcycle_nxt;
-  //wire stopcycle_r;
-  //assign stopcycle_nxt = wr_csr_nxt[10];
-  //sirv_gnrl_dfflr #(1) stopcycle_dfflr (stopcycle_ena, stopcycle_nxt, stopcycle_r, clk, rst_n);
-  //  //
-  //  // The stoptime field
-  //wire stoptime_ena = wr_dcsr_ena;
-  //wire stoptime_nxt;
-  //wire stoptime_r;
-  //assign stoptime_nxt = wr_csr_nxt[9];
-  //sirv_gnrl_dfflr #(1) stoptime_dfflr (stoptime_ena, stoptime_nxt, stoptime_r, clk, rst_n);
 
   assign dbg_stopcycle = 1'b1;
 
