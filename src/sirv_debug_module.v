@@ -1,22 +1,30 @@
- /*                                                                      
- Copyright 2017 Silicon Integrated Microelectronics, Inc.                
- Code origin: https://github.com/SI-RISCV/e200_opensource
-                                                                         
- Licensed under the Apache License, Version 2.0 (the "License");         
- you may not use this file except in compliance with the License.        
- You may obtain a copy of the License at                                 
-                                                                         
-     http://www.apache.org/licenses/LICENSE-2.0                          
-                                                                         
-  Unless required by applicable law or agreed to in writing, software    
- distributed under the License is distributed on an "AS IS" BASIS,       
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and     
- limitations under the License.                                          
- */                                                                      
-                                                                         
-                                                                         
-                                                                         
+/*
+Copyright 2018 Tomas Brabec
+Copyright 2017 Silicon Integrated Microelectronics, Inc.
+Code origin: https://github.com/SI-RISCV/e200_opensource
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Change log:
+    2018, Sep.
+    - Flattened module hierarchy (by replacing instantiated flops with
+      always blocks).
+    - Fixed interpretting DTM NOP as a write request.
+    - Allowed to use the offset 0x07 of the Debug RAM.
+*/
+
+
+
 //=====================================================================
 //--        _______   ___
 //--       (   ____/ /__/
@@ -32,8 +40,6 @@
 //  The debug module
 //
 // ====================================================================
-
-`include "e203_defines.v"
 
 module sirv_debug_module
 # (
@@ -55,7 +61,7 @@ module sirv_debug_module
 
   input  dbg_irq_r,
 
-    // The interface with CSR control 
+    // The interface with CSR control
   input  wr_dcsr_ena    ,
   input  wr_dpc_ena     ,
   input  wr_dscratch_ena,
@@ -78,10 +84,10 @@ module sirv_debug_module
   // The system memory bus interface
   input                      i_icb_cmd_valid,
   output                     i_icb_cmd_ready,
-  input  [12-1:0]            i_icb_cmd_addr, 
-  input                      i_icb_cmd_read, 
+  input  [12-1:0]            i_icb_cmd_addr,
+  input                      i_icb_cmd_read,
   input  [32-1:0]            i_icb_cmd_wdata,
-  
+
   output                     i_icb_rsp_valid,
   input                      i_icb_rsp_ready,
   output [32-1:0]            i_icb_rsp_rdata,
@@ -103,13 +109,13 @@ module sirv_debug_module
   input   hfclk,
   input   corerst,
 
-  input   test_mode 
+  input   test_mode
 );
 
 
   wire dm_rst_n;
 
-  // This is to reset Debug module's logic, the debug module have same clock domain 
+  // This is to reset Debug module's logic, the debug module have same clock domain
   // as the main domain, so just use the same reset.
 //---->>>>
 //  wire dm_rst;
@@ -119,7 +125,7 @@ module sirv_debug_module
 //    .reset(corerst),
 //    .io_sync_reset(dm_rst)
 //  );
-//  
+//
 //  assign dm_rst_n = ~dm_rst;
   reg[19:0] sync_dmrst;
 
@@ -134,7 +140,7 @@ module sirv_debug_module
   assign dm_rst_n = test_mode ? ~corerst : sync_dmrst[0];
 //<<<<----
 
-  //This is to reset the JTAG_CLK relevant logics, since the chip does not 
+  //This is to reset the JTAG_CLK relevant logics, since the chip does not
   //  have the JTAG_RST used really, so we need to use the global chip reset to reset
   //  JTAG relevant logics
   wire jtag_TCK;
@@ -171,7 +177,7 @@ module sirv_debug_module
 
 //---->>>>
   assign jtag_TCK = io_pads_jtag_TCK_i_ival;
-  assign jtaf_TRST = io_pads_jtag_TRST_n_i_ival;
+  assign jtag_TRST = io_pads_jtag_TRST_n_i_ival;
   assign jtag_TDI = io_pads_jtag_TDI_i_ival;
   assign jtag_TMS = io_pads_jtag_TMS_i_ival;
   assign io_pads_jtag_TDO_o_oe = jtag_DRV_TDO;
@@ -234,9 +240,9 @@ module sirv_debug_module
     .wr_dscratch_ena (wr_dscratch_ena),
 
 
-                                     
+
     .wr_csr_nxt      (wr_csr_nxt     ),
-                                     
+
     .dcsr_r          (dcsr_r         ),
     .dpc_r           (dpc_r          ),
     .dscratch_r      (dscratch_r     ),
@@ -247,7 +253,7 @@ module sirv_debug_module
     .dbg_ebreakm_r   (dbg_ebreakm_r),
 
     .clk             (core_csr_clk),
-    .rst_n           (dm_rst_n ) 
+    .rst_n           (dm_rst_n )
   );
 
 
@@ -266,19 +272,19 @@ module sirv_debug_module
       sirv_jtag_dtm # (
           .ASYNC_FF_LEVELS(ASYNC_FF_LEVELS)
       ) u_sirv_jtag_dtm (
-                       
+
         .jtag_TDI           (jtag_TDI      ),
         .jtag_TDO           (jtag_TDO      ),
         .jtag_TCK           (jtag_TCK      ),
         .jtag_TMS           (jtag_TMS      ),
         .jtag_TRST          (jtag_reset    ),
-                            
+
         .jtag_DRV_TDO       (jtag_DRV_TDO  ),
-                           
+
         .dtm_req_valid      (dtm_req_valid ),
         .dtm_req_ready      (dtm_req_ready ),
         .dtm_req_bits       (dtm_req_bits  ),
-                          
+
         .dtm_resp_valid     (dtm_resp_valid),
         .dtm_resp_ready     (dtm_resp_ready),
         .dtm_resp_bits      (dtm_resp_bits )
@@ -296,47 +302,45 @@ module sirv_debug_module
    end
   endgenerate
 
-  wire                i_dtm_req_valid;
-  wire                i_dtm_req_ready;
-  wire [41-1 :0]      i_dtm_req_bits;
+  wire        i_dtm_req_valid;
+  wire        i_dtm_req_ready;
+  wire [40:0] i_dtm_req_bits;
 
-  wire                i_dtm_resp_valid;
-  wire                i_dtm_resp_ready;
-  wire [36-1 : 0]     i_dtm_resp_bits;
+  wire        i_dtm_resp_valid;
+  wire        i_dtm_resp_ready;
+  wire [35:0] i_dtm_resp_bits;
 
-  sirv_gnrl_cdc_tx   
-   # (
+  cdc_tx #(
      .DW      (36),
-     .SYNC_DP (ASYNC_FF_LEVELS) 
-   ) u_dm2dtm_cdc_tx (
-     .o_vld  (dtm_resp_valid), 
-     .o_rdy_a(dtm_resp_ready), 
+     .SYNC_DP (ASYNC_FF_LEVELS)
+   ) u_cdc_tx (
+     .o_vld  (dtm_resp_valid),
+     .o_rdy  (dtm_resp_ready),
      .o_dat  (dtm_resp_bits ),
      .i_vld  (i_dtm_resp_valid),
      .i_rdy  (i_dtm_resp_ready),
      .i_dat  (i_dtm_resp_bits ),
-   
-     .clk    (dm_clk),
-     .rst_n  (dm_rst_n)
-   );
-     
-   sirv_gnrl_cdc_rx   
-      # (
-     .DW      (41),
-     .SYNC_DP (ASYNC_FF_LEVELS) 
-   ) u_dm2dtm_cdc_rx (
-     .i_vld_a(dtm_req_valid), 
-     .i_rdy  (dtm_req_ready), 
-     .i_dat  (dtm_req_bits ),
-     .o_vld  (i_dtm_req_valid),
-     .o_rdy  (i_dtm_req_ready),
-     .o_dat  (i_dtm_req_bits ),
-   
+
      .clk    (dm_clk),
      .rst_n  (dm_rst_n)
    );
 
-  wire i_dtm_req_hsked = i_dtm_req_valid & i_dtm_req_ready; 
+   cdc_rx #(
+     .DW      (41),
+     .SYNC_DP (ASYNC_FF_LEVELS)
+   ) u_dm2dtm_cdc_rx (
+     .i_vld  (dtm_req_valid),
+     .i_rdy  (dtm_req_ready),
+     .i_dat  (dtm_req_bits ),
+     .o_vld  (i_dtm_req_valid),
+     .o_rdy  (i_dtm_req_ready),
+     .o_dat  (i_dtm_req_bits ),
+
+     .clk    (dm_clk),
+     .rst_n  (dm_rst_n)
+   );
+
+  wire i_dtm_req_hsked = i_dtm_req_valid & i_dtm_req_ready;
 
   wire [ 4:0] dtm_req_bits_addr;
   wire [33:0] dtm_req_bits_data;
@@ -353,15 +357,19 @@ module sirv_debug_module
   // The OP field
   //   0: Ignore data. (nop)
   //   1: Read from address. (read)
-  //   2: Read from address. Then write data to address. (write) 
+  //   2: Read from address. Then write data to address. (write)
   //   3: Reserved.
   wire dtm_req_rd = (dtm_req_bits_op == 2'd1);
   wire dtm_req_wr = (dtm_req_bits_op == 2'd2);
 
-  wire dtm_req_sel_dbgram   = (dtm_req_bits_addr[4:3] == 2'b0) & (~(dtm_req_bits_addr[2:0] == 3'b111));//0x00-0x06
-  wire dtm_req_sel_dmcontrl = (dtm_req_bits_addr == 5'h10);
-  wire dtm_req_sel_dminfo   = (dtm_req_bits_addr == 5'h11);
-  wire dtm_req_sel_haltstat = (dtm_req_bits_addr == 5'h1C);
+  // Indicates that the operation represents a valid access to DM's resources.
+  // It protects spurious reads or writes when the operation is NOP.
+  wire access_valid = dtm_req_rd | dtm_req_wr;
+
+  wire dtm_req_sel_dbgram   = access_valid & (dtm_req_bits_addr[4:3] == 2'b0);
+  wire dtm_req_sel_dmcontrl = access_valid & (dtm_req_bits_addr == 5'h10);
+  wire dtm_req_sel_dminfo   = access_valid & (dtm_req_bits_addr == 5'h11);
+  wire dtm_req_sel_haltstat = access_valid & (dtm_req_bits_addr == 5'h1C);
 
   wire [33:0] dminfo_r;
   wire [33:0] dmcontrol_r;
@@ -384,10 +392,10 @@ module sirv_debug_module
   //   2: The previous operation failed. The data scanned into dbus in this access
   //      will be ignored. This status is sticky and can be cleared by writing dbusreset in dtmcontrol.
   //   3: The previous operation is still in progress. The data scanned into dbus
-  //      in this access will be ignored. 
-  wire [31:0] ram_dout;
+  //      in this access will be ignored.
+  wire [31:0] dram_dout;
   assign dtm_resp_bits_data =
-            ({34{dtm_req_sel_dbgram  }} & {dmcontrol_r[33:32],ram_dout})
+            ({34{dtm_req_sel_dbgram  }} & {dmcontrol_r[33:32],dram_dout})
           | ({34{dtm_req_sel_dmcontrl}} & dmcontrol_r)
           | ({34{dtm_req_sel_dminfo  }} & dminfo_r)
           | ({34{dtm_req_sel_haltstat}} & {{34-HART_ID_W{1'b0}},dm_haltnot_r});
@@ -462,12 +470,12 @@ module sirv_debug_module
   // Impelement the DM ICB system bus agent
   //   0x100 - 0x2ff Debug Module registers described in Section 7.12.
   //       * Only two registers needed, others are not supported
-  //                  cleardebint, at 0x100 
-  //                  sethaltnot,  at 0x10c 
+  //                  cleardebint, at 0x100
+  //                  sethaltnot,  at 0x10c
   //   0x400 - 0x4ff Up to 256 bytes of Debug RAM. Each unique address species 8 bits.
   //       * Since this is remapped to each core's ITCM, we dont handle it at this module
   //   0x800 - 0x9ff Up to 512 bytes of Debug ROM.
-  //    
+  //
   //
   wire i_icb_cmd_hsked = i_icb_cmd_valid & i_icb_cmd_ready;
   wire icb_wr_ena = i_icb_cmd_hsked & (~i_icb_cmd_read);
@@ -516,34 +524,33 @@ module sirv_debug_module
 
   wire [31:0] rom_dout;
 
-  assign i_icb_rsp_rdata =  
-            ({32{icb_sel_cleardebint}} & {{32-HART_ID_W{1'b0}}, cleardebint_r}) 
+  assign i_icb_rsp_rdata =
+            ({32{icb_sel_cleardebint}} & {{32-HART_ID_W{1'b0}}, cleardebint_r})
           | ({32{icb_sel_sethaltnot }} & {{32-HART_ID_W{1'b0}}, sethaltnot_r})
-          | ({32{icb_sel_dbgrom  }} & rom_dout) 
-          | ({32{icb_sel_dbgram  }} & ram_dout);
+          | ({32{icb_sel_dbgrom  }} & rom_dout)
+          | ({32{icb_sel_dbgram  }} & dram_dout);
 
    sirv_debug_rom u_sirv_debug_rom (
      .rom_addr (i_icb_cmd_addr[7-1:2]),
-     .rom_dout (rom_dout) 
+     .rom_dout (rom_dout)
    );
   //sirv_debug_rom_64 u_sirv_debug_rom_64(
   //  .rom_addr (i_icb_cmd_addr[8-1:2]),
-  //  .rom_dout (rom_dout) 
+  //  .rom_dout (rom_dout)
   //);
 
-  wire         ram_cs   = dtm_access_dbgram_ena | icb_access_dbgram_ena;
-  wire [3-1:0] ram_addr = dtm_access_dbgram_ena ? dtm_req_bits_addr[2:0] : i_icb_cmd_addr[4:2]; 
-  wire         ram_rd   = dtm_access_dbgram_ena ? dtm_req_rd             : i_icb_cmd_read; 
-  wire [32-1:0]ram_wdat = dtm_access_dbgram_ena ? dtm_req_bits_data[31:0]: i_icb_cmd_wdata;
+  wire         dram_cs   = dtm_access_dbgram_ena | icb_access_dbgram_ena;
+  wire [ 2:0]  dram_addr = dtm_access_dbgram_ena ? dtm_req_bits_addr[2:0] : i_icb_cmd_addr[4:2];
+  wire         dram_we   = dtm_access_dbgram_ena ? dtm_req_wr             : ~i_icb_cmd_read;
+  wire [31:0]  dram_din  = dtm_access_dbgram_ena ? dtm_req_bits_data[31:0]: i_icb_cmd_wdata;
 
-  sirv_debug_ram u_sirv_debug_ram(
-    .clk      (dm_clk),
-    .rst_n    (dm_rst_n), 
-    .ram_cs   (ram_cs),
-    .ram_rd   (ram_rd),
-    .ram_addr (ram_addr),
-    .ram_wdat (ram_wdat),
-    .ram_dout (ram_dout) 
+  debug_ram u_dram(
+    .clk  (dm_clk),
+    .en   (dram_cs),
+    .we   (dram_we),
+    .addr (dram_addr),
+    .din  (dram_din),
+    .dout (dram_dout)
   );
 
   wire [HART_NUM-1:0] dm_haltnot_set;
@@ -599,7 +606,7 @@ module sirv_debug_module
 
   assign o_dbg_irq = dm_debint_r;
 
- 
+
   assign o_ndreset   = {HART_NUM{1'b0}};
   assign o_fullreset = {HART_NUM{1'b0}};
 
