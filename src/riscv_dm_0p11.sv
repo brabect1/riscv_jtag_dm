@@ -16,230 +16,103 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Change log:
-    2018, Sep.
+    2018, Sep., Tomas Brabec
     - Flattened module hierarchy (by replacing instantiated flops with
       always blocks).
     - Fixed interpretting DTM NOP as a write request.
     - Allowed to use the offset 0x07 of the Debug RAM.
+    - Renamed from sirv_debug_module to riscv_dm_0p11 and changed to
+      SystemVerilog.
+    - Removed Silicon Integrated Micro. logo due to extensive changes
+      to the module.
+    - Removed Debug CSRs from the Debug Module as they would rather be
+      a part of an RISC-V core.
+    - Moved JTAG DTM from the module and replaced JTAG ports with DMI
+      interface.
 */
 
 
-
-//=====================================================================
-//--        _______   ___
-//--       (   ____/ /__/
-//--        \ \     __
-//--     ____\ \   / /
-//--    /_______\ /_/   MICROELECTRONICS
-//--
-//=====================================================================
-//
-// Designer   : Bob Hu
-//
-// Description:
-//  The debug module
-//
-// ====================================================================
-
-module sirv_debug_module
-# (
-  parameter SUPPORT_JTAG_DTM = 1,
-  parameter ASYNC_FF_LEVELS = 2,
-  parameter PC_SIZE = 32,
-  parameter HART_NUM = 1,
-  parameter HART_ID_W = 1
+/**
+* Implements the Debug Module (DM) compliant to RISC-V External Debug Support
+* v0.11.
+*
+* This is a rather minimal implementation with the following features:
+*
+* - Debug RAM (8x32b), mapped at `0x800`
+*
+* - Debug ROM, mapped at `0x400`:
+*   DROM implementation differs from the one described in RISC-V External Debug
+*   Support v0.11, but shall comply with Open OCD implementation of that spec
+*   version.
+*
+* - Debug Module Registers
+*   - dmcontrol (Control), at DMI addr `0x10`
+*   - dminfo (Info), at DMI addr `0x11`
+*   - haltstat (Halt Status), at DMI addr `0x1c`, this register is non-standard
+*
+* - System Bus Registers
+*   - cleardebint (Clear Debug Interrupt), mapped at `0x100`
+*   - sethaltnot (Set Halt Notification), mapped at `0x10c`
+*
+* Known limitations:
+*
+* - Number of HARTs: The module has been made configurable in the number of
+*   HARTs, but the implementation has really been exercised only for a single
+*   HART.
+*/
+module riscv_dm_0p11 #(
+    parameter int ASYNC_FF_LEVELS = 2,
+    parameter int PC_SIZE = 32,
+    parameter int HART_NUM = 1,
+    parameter int HART_ID_W = 1
 ) (
-
-  output  inspect_jtag_clk,
-
-    // The interface with commit stage
-  input   [PC_SIZE-1:0] cmt_dpc,
-  input   cmt_dpc_ena,
-
-  input   [3-1:0] cmt_dcause,
-  input   cmt_dcause_ena,
-
-  input  dbg_irq_r,
-
-    // The interface with CSR control
-  input  wr_dcsr_ena    ,
-  input  wr_dpc_ena     ,
-  input  wr_dscratch_ena,
-
-
-
-  input  [32-1:0] wr_csr_nxt    ,
-
-  output[32-1:0] dcsr_r    ,
-  output[PC_SIZE-1:0] dpc_r     ,
-  output[32-1:0] dscratch_r,
-
-  output dbg_mode,
-  output dbg_halt_r,
-  output dbg_step_r,
-  output dbg_ebreakm_r,
-  output dbg_stopcycle,
-
-
   // The system memory bus interface
-  input                      i_icb_cmd_valid,
-  output                     i_icb_cmd_ready,
-  input  [12-1:0]            i_icb_cmd_addr,
-  input                      i_icb_cmd_read,
-  input  [32-1:0]            i_icb_cmd_wdata,
+  input         i_icb_cmd_valid,
+  output        i_icb_cmd_ready,
+  input  [11:0] i_icb_cmd_addr,
+  input         i_icb_cmd_read,
+  input  [31:0] i_icb_cmd_wdata,
 
-  output                     i_icb_rsp_valid,
-  input                      i_icb_rsp_ready,
-  output [32-1:0]            i_icb_rsp_rdata,
+  output        i_icb_rsp_valid,
+  input         i_icb_rsp_ready,
+  output [31:0] i_icb_rsp_rdata,
 
+  // The debug bus interface/DMI (Debug Module Interface)
+  input        dtm_req_valid,
+  output       dtm_req_ready,
+  input [40:0] dtm_req_bits,
 
-  input   io_pads_jtag_TCK_i_ival,
-  input   io_pads_jtag_TMS_i_ival,
-  input   io_pads_jtag_TDI_i_ival,
-  output  io_pads_jtag_TDO_o_oval,
-  output  io_pads_jtag_TDO_o_oe,
-  input   io_pads_jtag_TRST_n_i_ival,
+  output       dtm_resp_valid,
+  input        dtm_resp_ready,
+  output[35:0] dtm_resp_bits,
 
   // To the target hart
   output [HART_NUM-1:0]      o_dbg_irq,
   output [HART_NUM-1:0]      o_ndreset,
   output [HART_NUM-1:0]      o_fullreset,
 
-  input   core_csr_clk,
-  input   hfclk,
-  input   corerst,
-
+  input   clk,
+  input   rst_n,
   input   test_mode
 );
 
 
-  wire dm_rst_n;
+  // synchronized reset
+  logic dm_rst_n;
 
-  // This is to reset Debug module's logic, the debug module have same clock domain
-  // as the main domain, so just use the same reset.
-  reg[19:0] sync_dmrst;
+  // reset synchtonizer
+  // TODO: There seems to be too many stages. Reduce.
+  logic [19:0] sync_dmrst;
 
-  always @(posedge hfclk or posedge corerst) begin: p_sync_dmrst
-      if (corerst) begin
+  always @(posedge clk or negedge rst_n) begin: p_sync_dmrst
+      if (!rst_n) begin
           sync_dmrst <= {20{1'b0}};
       end begin
           sync_dmrst <= {1'b1,sync_dmrst[19:1]};
       end
   end: p_sync_dmrst
 
-  assign dm_rst_n = test_mode ? ~corerst : sync_dmrst[0];
-
-  //This is to reset the JTAG_CLK relevant logics, since the chip does not
-  //  have the JTAG_RST used really, so we need to use the global chip reset to reset
-  //  JTAG relevant logics
-  wire jtag_TCK;
-  wire jtag_reset;
-
-
-  reg[2:0] sync_corerst;
-
-  always @(posedge jtag_TCK or posedge corerst) begin: p_sync_corerst
-      if (corerst) begin
-          sync_corerst <= 3'b111;
-      end begin
-          sync_corerst <= {1'b0,sync_corerst[2:1]};
-      end
-  end: p_sync_corerst
-
-  assign jtag_reset = test_mode ? corerst : sync_corerst[0];
-
-  wire dm_clk = hfclk;// Currently Debug Module have same clock domain as core
-
-  wire jtag_TDI;
-  wire jtag_TDO;
-  wire jtag_TMS;
-  wire jtag_TRST;
-  wire jtag_DRV_TDO;
-
-  assign jtag_TCK = io_pads_jtag_TCK_i_ival;
-  assign jtag_TRST = io_pads_jtag_TRST_n_i_ival;
-  assign jtag_TDI = io_pads_jtag_TDI_i_ival;
-  assign jtag_TMS = io_pads_jtag_TMS_i_ival;
-  assign io_pads_jtag_TDO_o_oe = jtag_DRV_TDO;
-  assign io_pads_jtag_TDO_o_oval = jtag_TDO;
-
-  sirv_debug_csr # (
-          .PC_SIZE(PC_SIZE)
-      ) u_sirv_debug_csr (
-    .dbg_stopcycle   (dbg_stopcycle  ),
-    .dbg_irq_r       (dbg_irq_r      ),
-
-    .cmt_dpc         (cmt_dpc        ),
-    .cmt_dpc_ena     (cmt_dpc_ena    ),
-    .cmt_dcause      (cmt_dcause     ),
-    .cmt_dcause_ena  (cmt_dcause_ena ),
-
-    .wr_dcsr_ena     (wr_dcsr_ena    ),
-    .wr_dpc_ena      (wr_dpc_ena     ),
-    .wr_dscratch_ena (wr_dscratch_ena),
-
-
-
-    .wr_csr_nxt      (wr_csr_nxt     ),
-
-    .dcsr_r          (dcsr_r         ),
-    .dpc_r           (dpc_r          ),
-    .dscratch_r      (dscratch_r     ),
-
-    .dbg_mode        (dbg_mode),
-    .dbg_halt_r      (dbg_halt_r),
-    .dbg_step_r      (dbg_step_r),
-    .dbg_ebreakm_r   (dbg_ebreakm_r),
-
-    .clk             (core_csr_clk),
-    .rst_n           (dm_rst_n )
-  );
-
-
-
-  // The debug bus interface
-  wire                     dtm_req_valid;
-  wire                     dtm_req_ready;
-  wire [41-1 :0]           dtm_req_bits;
-
-  wire                     dtm_resp_valid;
-  wire                     dtm_resp_ready;
-  wire [36-1 : 0]          dtm_resp_bits;
-
-  generate
-    if(SUPPORT_JTAG_DTM == 1) begin: jtag_dtm_gen
-      sirv_jtag_dtm # (
-          .ASYNC_FF_LEVELS(ASYNC_FF_LEVELS)
-      ) u_sirv_jtag_dtm (
-
-        .jtag_TDI           (jtag_TDI      ),
-        .jtag_TDO           (jtag_TDO      ),
-        .jtag_TCK           (jtag_TCK      ),
-        .jtag_TMS           (jtag_TMS      ),
-        .jtag_TRST          (jtag_reset    ),
-
-        .jtag_DRV_TDO       (jtag_DRV_TDO  ),
-
-        .dtm_req_valid      (dtm_req_valid ),
-        .dtm_req_ready      (dtm_req_ready ),
-        .dtm_req_bits       (dtm_req_bits  ),
-
-        .dtm_resp_valid     (dtm_resp_valid),
-        .dtm_resp_ready     (dtm_resp_ready),
-        .dtm_resp_bits      (dtm_resp_bits )
-      );
-   end
-   else begin: no_jtag_dtm_gen
-      assign jtag_TDI  = 1'b0;
-      assign jtag_TDO  = 1'b0;
-      assign jtag_TCK  = 1'b0;
-      assign jtag_TMS  = 1'b0;
-      assign jtag_DRV_TDO = 1'b0;
-      assign dtm_req_valid = 1'b0;
-      assign dtm_req_bits = 41'b0;
-      assign dtm_resp_ready = 1'b0;
-   end
-  endgenerate
+  assign dm_rst_n = test_mode ? rst_n : sync_dmrst[0];
 
   wire        i_dtm_req_valid;
   wire        i_dtm_req_ready;
@@ -260,7 +133,7 @@ module sirv_debug_module
      .i_rdy  (i_dtm_resp_ready),
      .i_dat  (i_dtm_resp_bits ),
 
-     .clk    (dm_clk),
+     .clk    (clk),
      .rst_n  (dm_rst_n)
    );
 
@@ -275,7 +148,7 @@ module sirv_debug_module
      .o_rdy  (i_dtm_req_ready),
      .o_dat  (i_dtm_req_bits ),
 
-     .clk    (dm_clk),
+     .clk    (clk),
      .rst_n  (dm_rst_n)
    );
 
@@ -374,7 +247,7 @@ module sirv_debug_module
 
   wire dtm_access_dbgram_ena    = i_dtm_req_hsked & dtm_req_sel_dbgram;
 
-  always @(posedge dm_clk or negedge dm_rst_n) begin: p_dm_hartid
+  always @(posedge clk or negedge dm_rst_n) begin: p_dm_hartid
       if (!dm_rst_n)
           dm_hartid_r <= {HART_ID_W{1'b0}};
       else if (dtm_wr_hartid_ena)
@@ -407,7 +280,7 @@ module sirv_debug_module
   assign icb_access_dbgram_ena = i_icb_cmd_hsked & icb_sel_dbgram;
 
   reg[HART_ID_W-1:0] cleardebint_r;
-  always @(posedge dm_clk or negedge dm_rst_n) begin: p_cleardebint
+  always @(posedge clk or negedge dm_rst_n) begin: p_cleardebint
       if (!dm_rst_n)
           cleardebint_r <= {HART_ID_W{1'b0}};
       else if (icb_wr_cleardebint_ena)
@@ -415,7 +288,7 @@ module sirv_debug_module
   end: p_cleardebint
 
   reg[HART_ID_W-1:0] sethaltnot_r;
-  always @(posedge dm_clk or negedge dm_rst_n) begin: p_sethaltnot
+  always @(posedge clk or negedge dm_rst_n) begin: p_sethaltnot
       if (!dm_rst_n)
           sethaltnot_r <= {HART_ID_W{1'b0}};
       else if (icb_wr_sethaltnot_ena)
@@ -445,7 +318,7 @@ module sirv_debug_module
   wire [31:0]  dram_din  = dtm_access_dbgram_ena ? dtm_req_bits_data[31:0]: i_icb_cmd_wdata;
 
   debug_ram u_dram(
-    .clk  (dm_clk),
+    .clk  (clk),
     .en   (dram_cs),
     .we   (dram_we),
     .addr (dram_addr),
@@ -471,7 +344,7 @@ module sirv_debug_module
         // The haltnot will be cleared by DTM write 0 to haltnot
       assign dm_haltnot_clr[i] = dtm_wr_haltnot_ena & (dm_hartid_r == i[HART_ID_W-1:0]);
 
-      always @(posedge dm_clk or negedge dm_rst_n) begin: p_dm_haltnot
+      always @(posedge clk or negedge dm_rst_n) begin: p_dm_haltnot
           if (!dm_rst_n)
               dm_haltnot_r[i] <= 1'b0;
           else if (dm_haltnot_set[i] | dm_haltnot_clr[i])
@@ -483,7 +356,7 @@ module sirv_debug_module
       // The debug intr will be clear by system bus set its ID to cleardebint_r
       assign dm_debint_clr[i] = icb_wr_cleardebint_ena & (i_icb_cmd_wdata[HART_ID_W-1:0] == i[HART_ID_W-1:0]);
 
-      always @(posedge dm_clk or negedge dm_rst_n) begin: p_dm_debint
+      always @(posedge clk or negedge dm_rst_n) begin: p_dm_debint
           if (!dm_rst_n)
               dm_debint_r[i] <= 1'b0;
           else if (dm_debint_set[i] | dm_debint_clr[i])
@@ -494,10 +367,8 @@ module sirv_debug_module
 
   assign o_dbg_irq = dm_debint_r;
 
-
+  // TODO: Check if complies to the spec. If so, remove the outputs as unused.
   assign o_ndreset   = {HART_NUM{1'b0}};
   assign o_fullreset = {HART_NUM{1'b0}};
 
-  assign inspect_jtag_clk = jtag_TCK;
-
-endmodule
+endmodule: riscv_dm_0p11

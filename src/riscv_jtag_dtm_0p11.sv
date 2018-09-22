@@ -13,52 +13,60 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+Change log:
+    2018, Sep., Tomas Brabec
+    - Renamed from sirv_jtag_dtm to riscv_jtag_dtm_0p11 and changed to
+      SystemVerilog.
 */
 
 
+/**
+* Implements the JTAG Debug Transport Module (DTM) compliant to RISC-V External
+* Debug Support v0.11.
+*/
+module riscv_jtag_dtm_0p11 #(
+   parameter int ASYNC_FF_LEVELS  = 2,
 
+   parameter int DEBUG_DATA_BITS  = 34,
+   parameter int DEBUG_ADDR_BITS = 5, // Spec allows values are 5-7 (TODO: need to double check)
+   parameter int DEBUG_OP_BITS = 2, // OP and RESP are the same size.
+   parameter int DBUS_REQ_BITS = DEBUG_OP_BITS + DEBUG_ADDR_BITS + DEBUG_DATA_BITS,
+   parameter int DBUS_RESP_BITS = DEBUG_OP_BITS + DEBUG_DATA_BITS,
 
-
-module sirv_jtag_dtm (
-
-                                 //JTAG Interface
-
-                                 jtag_TDI,
-                                 jtag_TDO,
-                                 jtag_TCK,
-                                 jtag_TMS,
-                                 jtag_TRST,
-
-                                 jtag_DRV_TDO,
-
-                                 dtm_req_valid,
-                                 dtm_req_ready,
-                                 dtm_req_bits,
-
-                                 dtm_resp_valid,
-                                 dtm_resp_ready,
-                                 dtm_resp_bits
-
-                                 );
-   //--------------------------------------------------------
-   // Parameter Declarations
-
-   parameter ASYNC_FF_LEVELS  = 2;
-
-   parameter DEBUG_DATA_BITS  = 34;
-   parameter DEBUG_ADDR_BITS = 5; // Spec allows values are 5-7
-   parameter DEBUG_OP_BITS = 2; // OP and RESP are the same size.
-
-   parameter JTAG_VERSION  = 4'h1;
-   parameter JTAG_PART_NUM = 16'h0E31; // E31
-   parameter JTAG_MANUF_ID = 11'h489;  // As Assigned by JEDEC
+   parameter int JTAG_VERSION  = 4'h1,
+   parameter int JTAG_PART_NUM = 16'h0E31, // E31
+   parameter int JTAG_MANUF_ID = 11'h489,  // As Assigned by JEDEC
 
    // Number of cycles which must remain in IDLE
    // The software should handle even if the
    // answer is actually higher than this, or
    // the software may choose to ignore it entirely
    // and just check for busy.
-   parameter DBUS_IDLE_CYCLES = 3'h5;
+   parameter int DBUS_IDLE_CYCLES = 3'h5
+) (
+    //JTAG Interface
+
+    input  logic tdi,
+    output logic tdo,
+    output logic tdo_oe,
+    input  logic tck,
+    input  logic tms,
+    input  logic trst,
+
+    // RISC-V Core Side
+
+    output logic                     dtm_req_valid,
+    input  logic                     dtm_req_ready,
+    output logic[DBUS_REQ_BITS-1:0]  dtm_req_bits,
+
+    input  logic                     dtm_resp_valid,
+    output logic                     dtm_resp_ready,
+    input  logic[DBUS_RESP_BITS-1:0] dtm_resp_bits
+);
+   //--------------------------------------------------------
+   // Parameter Declarations
+
 
    localparam IR_BITS = 5;
 
@@ -89,35 +97,12 @@ module sirv_jtag_dtm (
    localparam REG_DEBUG_ACCESS = 5'b10001;
    localparam REG_DTM_INFO     = 5'b10000;
 
-   localparam DBUS_REG_BITS = DEBUG_OP_BITS + DEBUG_ADDR_BITS + DEBUG_DATA_BITS;
-   localparam DBUS_REQ_BITS = DEBUG_OP_BITS + DEBUG_ADDR_BITS + DEBUG_DATA_BITS;
-   localparam DBUS_RESP_BITS = DEBUG_OP_BITS + DEBUG_DATA_BITS;
+   localparam DBUS_REG_BITS = DBUS_REQ_BITS;
 
 
    localparam SHIFT_REG_BITS = DBUS_REG_BITS;
 
-   //--------------------------------------------------------
-   // I/O Declarations
 
-   //JTAG SIDE
-   input                                jtag_TDI;
-   output reg                           jtag_TDO;
-   input                                jtag_TCK;
-   input                                jtag_TMS;
-   input                                jtag_TRST;
-
-   // To allow tri-state outside of this block.
-   output reg                           jtag_DRV_TDO;
-
-   // RISC-V Core Side
-
-   output                               dtm_req_valid;
-   input                                dtm_req_ready;
-   output [DBUS_REQ_BITS - 1 :0]        dtm_req_bits;
-
-   input                                dtm_resp_valid;
-   output                               dtm_resp_ready;
-   input [DBUS_RESP_BITS - 1 : 0]       dtm_resp_bits;
 
    wire                                 i_dtm_req_valid;
    wire                                 i_dtm_req_ready;
@@ -159,7 +144,7 @@ module sirv_jtag_dtm (
    //--------------------------------------------------------
    // Combo Logic
 
-   assign idcode  = {JTAG_VERSION, JTAG_PART_NUM, JTAG_MANUF_ID, 1'h1};
+   assign idcode  = {JTAG_VERSION[3:0], JTAG_PART_NUM[15:0], JTAG_MANUF_ID[10:0], 1'h1};
 
    wire [3:0]                           debugAddrBits = DEBUG_ADDR_BITS[3:0];
    wire [3:0]                           debugVersion = DEBUG_VERSION[3:0];
@@ -169,7 +154,7 @@ module sirv_jtag_dtm (
 
    wire                                 dbusReset;
 
-   assign dbusIdleCycles = DBUS_IDLE_CYCLES;
+   assign dbusIdleCycles = DBUS_IDLE_CYCLES[2:0];
    assign dbusStatus = {stickyNonzeroRespReg, stickyNonzeroRespReg | stickyBusyReg};
    assign dbusReset = shiftReg[16];
 
@@ -210,36 +195,36 @@ module sirv_jtag_dtm (
 
    // JTAG STATE MACHINE
 
-   always @(posedge jtag_TCK or posedge jtag_TRST) begin
-      if (jtag_TRST) begin
+   always @(posedge tck or posedge trst) begin
+      if (trst) begin
          jtagStateReg <= TEST_LOGIC_RESET;
       end else begin
          case (jtagStateReg)
-           TEST_LOGIC_RESET  : jtagStateReg <= jtag_TMS ? TEST_LOGIC_RESET : RUN_TEST_IDLE;
-           RUN_TEST_IDLE     : jtagStateReg <= jtag_TMS ? SELECT_DR        : RUN_TEST_IDLE;
-           SELECT_DR         : jtagStateReg <= jtag_TMS ? SELECT_IR        : CAPTURE_DR;
-           CAPTURE_DR        : jtagStateReg <= jtag_TMS ? EXIT1_DR         : SHIFT_DR;
-           SHIFT_DR          : jtagStateReg <= jtag_TMS ? EXIT1_DR         : SHIFT_DR;
-           EXIT1_DR          : jtagStateReg <= jtag_TMS ? UPDATE_DR        : PAUSE_DR;
-           PAUSE_DR          : jtagStateReg <= jtag_TMS ? EXIT2_DR         : PAUSE_DR;
-           EXIT2_DR          : jtagStateReg <= jtag_TMS ? UPDATE_DR        : SHIFT_DR;
-           UPDATE_DR         : jtagStateReg <= jtag_TMS ? SELECT_DR        : RUN_TEST_IDLE;
-           SELECT_IR         : jtagStateReg <= jtag_TMS ? TEST_LOGIC_RESET : CAPTURE_IR;
-           CAPTURE_IR        : jtagStateReg <= jtag_TMS ? EXIT1_IR         : SHIFT_IR;
-           SHIFT_IR          : jtagStateReg <= jtag_TMS ? EXIT1_IR         : SHIFT_IR;
-           EXIT1_IR          : jtagStateReg <= jtag_TMS ? UPDATE_IR        : PAUSE_IR;
-           PAUSE_IR          : jtagStateReg <= jtag_TMS ? EXIT2_IR         : PAUSE_IR;
-           EXIT2_IR          : jtagStateReg <= jtag_TMS ? UPDATE_IR        : SHIFT_IR;
-           UPDATE_IR         : jtagStateReg <= jtag_TMS ? SELECT_DR        : RUN_TEST_IDLE;
+           TEST_LOGIC_RESET  : jtagStateReg <= tms ? TEST_LOGIC_RESET : RUN_TEST_IDLE;
+           RUN_TEST_IDLE     : jtagStateReg <= tms ? SELECT_DR        : RUN_TEST_IDLE;
+           SELECT_DR         : jtagStateReg <= tms ? SELECT_IR        : CAPTURE_DR;
+           CAPTURE_DR        : jtagStateReg <= tms ? EXIT1_DR         : SHIFT_DR;
+           SHIFT_DR          : jtagStateReg <= tms ? EXIT1_DR         : SHIFT_DR;
+           EXIT1_DR          : jtagStateReg <= tms ? UPDATE_DR        : PAUSE_DR;
+           PAUSE_DR          : jtagStateReg <= tms ? EXIT2_DR         : PAUSE_DR;
+           EXIT2_DR          : jtagStateReg <= tms ? UPDATE_DR        : SHIFT_DR;
+           UPDATE_DR         : jtagStateReg <= tms ? SELECT_DR        : RUN_TEST_IDLE;
+           SELECT_IR         : jtagStateReg <= tms ? TEST_LOGIC_RESET : CAPTURE_IR;
+           CAPTURE_IR        : jtagStateReg <= tms ? EXIT1_IR         : SHIFT_IR;
+           SHIFT_IR          : jtagStateReg <= tms ? EXIT1_IR         : SHIFT_IR;
+           EXIT1_IR          : jtagStateReg <= tms ? UPDATE_IR        : PAUSE_IR;
+           PAUSE_IR          : jtagStateReg <= tms ? EXIT2_IR         : PAUSE_IR;
+           EXIT2_IR          : jtagStateReg <= tms ? UPDATE_IR        : SHIFT_IR;
+           UPDATE_IR         : jtagStateReg <= tms ? SELECT_DR        : RUN_TEST_IDLE;
          endcase // case (jtagStateReg)
-      end // else: !if(jtag_TRST)
-   end // always @ (posedge jtag_TCK or posedge jtag_TRST)
+      end // else: !if(trst)
+   end // always @ (posedge tck or posedge trst)
 
    // SHIFT REG
-   always @(posedge jtag_TCK) begin
+   always @(posedge tck) begin
       case (jtagStateReg)
         CAPTURE_IR : shiftReg <= {{(SHIFT_REG_BITS-1){1'b0}}, 1'b1}; //JTAG spec only says must end with 'b01.
-        SHIFT_IR   : shiftReg <= {{(SHIFT_REG_BITS-IR_BITS){1'b0}}, jtag_TDI, shiftReg[IR_BITS-1 : 1]};
+        SHIFT_IR   : shiftReg <= {{(SHIFT_REG_BITS-IR_BITS){1'b0}}, tdi, shiftReg[IR_BITS-1 : 1]};
         CAPTURE_DR : case (irReg)
                        REG_BYPASS       : shiftReg <= {(SHIFT_REG_BITS){1'b0}};
                        REG_IDCODE       : shiftReg <= {{(SHIFT_REG_BITS-32){1'b0}}, idcode};
@@ -249,19 +234,19 @@ module sirv_jtag_dtm (
                          shiftReg <= {(SHIFT_REG_BITS){1'b0}};
                      endcase
         SHIFT_DR   : case (irReg)
-                       REG_BYPASS   : shiftReg <= {{(SHIFT_REG_BITS- 1){1'b0}}, jtag_TDI};
-                       REG_IDCODE   : shiftReg <= {{(SHIFT_REG_BITS-32){1'b0}}, jtag_TDI, shiftReg[31:1]};
-                       REG_DTM_INFO : shiftReg <= {{(SHIFT_REG_BITS-32){1'b0}}, jtag_TDI, shiftReg[31:1]};
-                       REG_DEBUG_ACCESS : shiftReg <= {jtag_TDI, shiftReg[SHIFT_REG_BITS -1 : 1 ]};
+                       REG_BYPASS   : shiftReg <= {{(SHIFT_REG_BITS- 1){1'b0}}, tdi};
+                       REG_IDCODE   : shiftReg <= {{(SHIFT_REG_BITS-32){1'b0}}, tdi, shiftReg[31:1]};
+                       REG_DTM_INFO : shiftReg <= {{(SHIFT_REG_BITS-32){1'b0}}, tdi, shiftReg[31:1]};
+                       REG_DEBUG_ACCESS : shiftReg <= {tdi, shiftReg[SHIFT_REG_BITS -1 : 1 ]};
                        default: // BYPASS
-                        shiftReg <= {{(SHIFT_REG_BITS- 1){1'b0}} , jtag_TDI};
+                        shiftReg <= {{(SHIFT_REG_BITS- 1){1'b0}} , tdi};
                      endcase // case (irReg)
       endcase // case (jtagStateReg)
    end
 
    // IR
-   always @(negedge jtag_TCK or posedge jtag_TRST) begin
-      if (jtag_TRST) begin
+   always @(negedge tck or posedge trst) begin
+      if (trst) begin
          irReg <= REG_IDCODE;
       end else if (jtagStateReg == TEST_LOGIC_RESET) begin
          irReg <= REG_IDCODE;
@@ -275,21 +260,21 @@ module sirv_jtag_dtm (
    // This means that busyReg will still be set when we check it,
    // so the logic for checking busy looks ahead.
 
-   always @(posedge jtag_TCK or posedge jtag_TRST) begin
-      if (jtag_TRST) begin
+   always @(posedge tck or posedge trst) begin
+      if (trst) begin
          busyReg <= 1'b0;
       end else if (i_dtm_req_valid) begin //UPDATE_DR onwards
          busyReg <= 1'b1;
       end else if (i_dtm_resp_valid & i_dtm_resp_ready) begin //only in CAPTURE_DR
          busyReg <= 1'b0;
       end
-   end // always @ (posedge jtag_TCK or posedge jtag_TRST)
+   end // always @ (posedge tck or posedge trst)
 
 
    // Downgrade/Skip. We make the decision to downgrade or skip
    // during every CAPTURE_DR, and use the result in UPDATE_DR.
-   always @(posedge jtag_TCK or posedge jtag_TRST) begin
-      if (jtag_TRST) begin
+   always @(posedge tck or posedge trst) begin
+      if (trst) begin
          skipOpReg            <= 1'b0;
          downgradeOpReg       <= 1'b0;
          stickyBusyReg        <= 1'b0;
@@ -317,12 +302,12 @@ module sirv_jtag_dtm (
            end
          endcase // case (jtagStateReg)
       end
-   end // always @ (posedge jtag_TCK or posedge jtag_TRST)
+   end // always @ (posedge tck or posedge trst)
 
 
    //dbusReg, dbusValidReg.
-   always @(posedge jtag_TCK or posedge jtag_TRST) begin
-      if (jtag_TRST) begin
+   always @(posedge tck or posedge trst) begin
+      if (trst) begin
          dbusReg <= {(DBUS_REG_BITS) {1'b0}};
          dbusValidReg <= 1'b0;
       end else if (jtagStateReg == UPDATE_DR) begin
@@ -340,24 +325,24 @@ module sirv_jtag_dtm (
       end else if (i_dtm_req_ready) begin
          dbusValidReg <= 1'b0;
       end
-   end // always @ (negedge jtag_TCK or posedge jtag_TRST)
+   end // always @ (negedge tck or posedge trst)
 
    //TDO
-   always @(negedge jtag_TCK or posedge jtag_TRST) begin
-      if (jtag_TRST) begin
-         jtag_TDO     <= 1'b0;
-         jtag_DRV_TDO <= 1'b0;
+   always @(negedge tck or posedge trst) begin
+      if (trst) begin
+         tdo    <= 1'b0;
+         tdo_oe <= 1'b0;
       end else if (jtagStateReg == SHIFT_IR) begin
-         jtag_TDO     <= shiftReg[0];
-         jtag_DRV_TDO <= 1'b1;
+         tdo    <= shiftReg[0];
+         tdo_oe <= 1'b1;
       end else if (jtagStateReg == SHIFT_DR) begin
-         jtag_TDO     <= shiftReg[0];
-         jtag_DRV_TDO <= 1'b1;
+         tdo    <= shiftReg[0];
+         tdo_oe <= 1'b1;
       end else begin
-         jtag_TDO     <= 1'b0;
-         jtag_DRV_TDO <= 1'b0;
+         tdo    <= 1'b0;
+         tdo_oe <= 1'b0;
       end
-   end // always @ (negedge jtag_TCK or posedge jtag_TRST)
+   end // always @ (negedge tck or posedge trst)
 
    cdc_tx#(
      .DW      (41),
@@ -370,8 +355,8 @@ module sirv_jtag_dtm (
      .i_rdy  (i_dtm_req_ready),
      .i_dat  (i_dtm_req_bits ),
 
-     .clk    (jtag_TCK),
-     .rst_n  (~jtag_TRST)
+     .clk    (tck),
+     .rst_n  (~trst)
    );
 
    cdc_rx#(
@@ -385,8 +370,8 @@ module sirv_jtag_dtm (
      .o_rdy  (i_dtm_resp_ready),
      .o_dat  (i_dtm_resp_bits ),
 
-     .clk    (jtag_TCK),
-     .rst_n  (~jtag_TRST)
+     .clk    (tck),
+     .rst_n  (~trst)
    );
 
-endmodule
+endmodule: riscv_jtag_dtm_0p11
