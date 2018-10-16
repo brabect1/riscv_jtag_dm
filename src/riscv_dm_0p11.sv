@@ -107,7 +107,7 @@ module riscv_dm_0p11 #(
   always @(posedge clk or negedge rst_n) begin: p_sync_dmrst
       if (!rst_n) begin
           sync_dmrst <= {20{1'b0}};
-      end begin
+      end else begin
           sync_dmrst <= {1'b1,sync_dmrst[19:1]};
       end
   end: p_sync_dmrst
