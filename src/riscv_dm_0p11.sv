@@ -48,7 +48,8 @@ Change log:
 * - Debug Module Registers
 *   - dmcontrol (Control), at DMI addr `0x10`
 *   - dminfo (Info), at DMI addr `0x11`
-*   - haltstat (Halt Status), at DMI addr `0x1c`, this register is non-standard
+*   - haltstat (Halt Status), at DMI addr `0x1c`, other Halt Status registers
+*     at consecutive addresses are not implemented
 *
 * - System Bus Registers
 *   - cleardebint (Clear Debug Interrupt), mapped at `0x100`
