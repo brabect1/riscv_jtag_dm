@@ -16,9 +16,13 @@ limitations under the License.
 
 
 /**
-* Implements 8x32b synchronous RAM used as Debug RAM (DRAM).
+* Implements 8x32b asynchronous RAM used as Debug RAM (DRAM).
 *
-* Synchronous RAM is such that read data is updated with a clock.
+* Asynchronous RAM is such that read data is updated asynchronously (i.e. with address change).
+*
+* Asynchronous RAM is used due to response strobe timing. Changing to a synchronous
+* RAM would need changing timing of the response valid strobe (which might have yet
+* other implications).
 *
 * This module is merely a wrapper over the actual RAM module, which is intentional
 * to let users change underlying RAM implementation without affecting the Debug
@@ -45,14 +49,15 @@ sp_ram #(
     .*
 );
 
-endmodule: debug_ram;
+endmodule: debug_ram
 
 
 module sp_ram #(
+//    parameter string INIT_FILE = ""           // Specify name/location of RAM initialization file if using one (leave blank if not)
+    parameter bit[200*8-1:0] INIT_FILE = '0,           // Specify name/location of RAM initialization file if using one (leave blank if not)
     parameter int NB_COL,                     // Specify number of columns (number of bytes)
     parameter int COL_WIDTH,                  // Specify column width (byte width, typically 8 or 9)
-    parameter int AWIDTH,                     // Specify RAM depth (number of entries)
-    parameter string INIT_FILE = ""           // Specify name/location of RAM initialization file if using one (leave blank if not)
+    parameter int AWIDTH                      // Specify RAM depth (number of entries)
 ) (
     input  logic [AWIDTH-1:0] addr,             // address bus, width determined from RAM_DEPTH
     input  logic [(NB_COL*COL_WIDTH)-1:0] din,  // RAM input data
@@ -65,9 +70,10 @@ module sp_ram #(
     logic [(NB_COL*COL_WIDTH)-1:0] mem [2**AWIDTH-1:0];
 
     // The following code either initializes the memory values to a specified file or to all zeros to match hardware
-    if (INIT_FILE != "") begin: use_init_file
+//    if (INIT_FILE != "") begin: use_init_file
+    if (|INIT_FILE != 1'b0) begin: use_init_file
         initial
-            $readmemh(INIT_FILE, mem, 0, 2**AWIDTH-1);
+            $readmemh(INIT_FILE, mem);
     end else begin: init_bram_to_zero
         integer ram_index;
         initial begin
@@ -76,10 +82,11 @@ module sp_ram #(
         end
     end
 
-    always @(posedge clk)
-        if (en) begin
-            dout <= mem[addr];
-        end
+//    always @(posedge clk)
+//        if (en) begin
+//            dout <= mem[addr];
+//        end
+    assign dout = mem[addr];
 
     for (genvar i = 0; i < NB_COL; i = i+1) begin: byte_write
         always @(posedge clk)
