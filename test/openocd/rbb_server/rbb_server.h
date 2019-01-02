@@ -120,12 +120,17 @@ class rbb_server {
         */
         void respond();
 
+        /**
+        * Instructs the RBB server to close the socket and any connections.
+        */
+        void finish();
+
     private:
 
         rbb_backend* backend;
 
-        int socket_fd;
-        int client_fd;
+        int sockfd;
+        int clientfd;
 
 };
 
