@@ -34,14 +34,20 @@ rbb_server::rbb_server(rbb_backend* backend):
   clientfd(0),
   backend(NULL)
 {
-    this->backend = backend;
+    if (backend != NULL && backend->setServer(this) == 0) {
+        this->backend = backend;
+    } else {
+        fprintf(stderr,"ERROR: Failed to register backend!\n");
+    }
 }
 
 int rbb_server::finished() {
-    return (sockfd == 0 && clientfd == 0);
+    int res = (sockfd == 0 && clientfd == 0);
+//    fprintf(stderr,"INFO: Finished = %s\n", res ? "yes" : "no");
+    return res;
 }
 
-void rbb_server::fininsh() {
+void rbb_server::finish() {
     if (sockfd != 0) {
         if (clientfd != 0) {
             close(clientfd);
@@ -50,6 +56,8 @@ void rbb_server::fininsh() {
 
         close(sockfd);
         sockfd = 0;
+
+        fprintf(stderr,"INFO: Closing rbb_server socket (%d, %d).\n", sockfd, clientfd);
     }
 }
 
@@ -70,7 +78,7 @@ void rbb_server::listen(uint16_t port) {
     // make the socket reuse the address (e.g. even if blocked by a crashed process)
     int reuseaddr = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int)) < 0) {
-        fprintf(stderr, "ERROR setsockopt(SO_REUSEADDR) failed (%d): %s\n", errno, strerr(errno));
+        fprintf(stderr, "ERROR setsockopt(SO_REUSEADDR) failed (%d): %s\n", errno, strerror(errno));
         close(sockfd);
         sockfd = 0;
         abort();
@@ -82,7 +90,7 @@ void rbb_server::listen(uint16_t port) {
     sockaddr.sin_addr.s_addr = INADDR_ANY;
     sockaddr.sin_port = htons(port);
     if (bind(sockfd, (struct sockaddr*)&sockaddr, sizeof(sockaddr)) < 0) {
-        fprintf(stderr, "ERROR binding socket to port %d (%d): %s\n", port, errno, strerr(errno));
+        fprintf(stderr, "ERROR binding socket to port %d (%d): %s\n", port, errno, strerror(errno));
         close(sockfd);
         sockfd = 0;
         abort();
@@ -90,7 +98,7 @@ void rbb_server::listen(uint16_t port) {
 
     // listen to connections
     if (::listen(sockfd,1) < 0) {
-        fprintf(stderr, "ERROR listening on a bound socket (%d): %s\n", errno, strerr(errno));
+        fprintf(stderr, "ERROR listening on a bound socket (%d): %s\n", errno, strerror(errno));
         close(sockfd);
         sockfd = 0;
         abort();
@@ -102,9 +110,10 @@ void rbb_server::listen(uint16_t port) {
 void rbb_server::accept() {
     struct sockaddr_in clientaddr;
     if (clientfd == 0 && sockfd != 0) {
-        clientfd = ::accept(sockfd, (struct sockaddr*)&clientaddr, sizeof(clientaddr));
+        socklen_t clilen = sizeof(clientaddr);
+        clientfd = ::accept(sockfd, (struct sockaddr*)&clientaddr, &clilen);
         if (clientfd < 0) {
-            fprintf(stderr, "ERROR accepting client connection (%d): %s\n", errno, strerr(errno));
+            fprintf(stderr, "ERROR accepting client connection (%d): %s\n", errno, strerror(errno));
             close(sockfd);
             sockfd = 0;
             clientfd = 0;
@@ -119,12 +128,24 @@ void rbb_server::respond() {
     if (clientfd != 0) {
         ssize_t n = read(clientfd,&c,sizeof(c));
         if (n < 0) {
-            fprintf(stderr, "ERROR receiving command (%d): %s\n", errno, strerr(errno));
+            fprintf(stderr, "ERROR receiving command (%d): %s\n", errno, strerror(errno));
             return;
         }
 
         respond = 0;
         switch (c) {
+            case 'Q': if (backend) backend->quit(); else finish(); break;
+            case 'r': if (backend) backend->reset(); break;
+            case 'B': if (backend) backend->blink(1); break;
+            case 'b': if (backend) backend->blink(0); break;
+            case '0': if (backend) backend->setInputs(0,0,0); break;
+            case '1': if (backend) backend->setInputs(0,0,1); break;
+            case '2': if (backend) backend->setInputs(0,1,0); break;
+            case '3': if (backend) backend->setInputs(0,1,1); break;
+            case '4': if (backend) backend->setInputs(1,0,0); break;
+            case '5': if (backend) backend->setInputs(1,0,1); break;
+            case '6': if (backend) backend->setInputs(1,1,0); break;
+            case '7': if (backend) backend->setInputs(1,1,1); break;
             case 'R': respond='1'; break;
             default:
                 fprintf(stderr,"WARN unknown command '%c'\n", c);
@@ -133,7 +154,7 @@ void rbb_server::respond() {
         if (respond != 0) {
             ssize_t n = write(clientfd, &respond, sizeof(respond));
             if (n < 0) {
-                fprintf(stderr, "ERROR sending response '%c' (%d): %s\n", response, errno, strerr(errno));
+                fprintf(stderr, "ERROR sending response '%c' (%d): %s\n", respond, errno, strerror(errno));
             }
         }
     }

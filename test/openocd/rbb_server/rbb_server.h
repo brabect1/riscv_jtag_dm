@@ -21,13 +21,6 @@ limitations under the License.
 #include <sys/types.h>
 #include <pthread.h>
 
-// Verilator related includes
-#include "Vdut.h"
-#include <verilated.h>
-#if VM_TRACE
-#include <verilated_vcd_c.h>
-#endif
-
 
 class rbb_server;
 
@@ -67,6 +60,16 @@ class rbb_backend {
         virtual void reset() = 0;
 
         /**
+        * Requests backend to quit.
+        */
+        virtual void quit() = 0;
+
+        /**
+        * Sets blink status to on/off (=1/0).
+        */
+        virtual void blink(int on) = 0;
+
+        /**
         * Drives JTAG inputs to the given state. Allowed values are 0 and 1.
         */
         virtual void setInputs(int tck, int tms, int tdi) = 0;
@@ -75,7 +78,7 @@ class rbb_backend {
         * Gets the state of JTAG TDO.
         */
         virtual int getTdo() = 0;
-}
+};
 
 /**
 * Implements an abstract OpenOCD `remote_bitbang` (RBB) server that delegates command
