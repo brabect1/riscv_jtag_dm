@@ -146,7 +146,7 @@ void rbb_server::respond() {
             case '5': if (backend) backend->setInputs(1,0,1); break;
             case '6': if (backend) backend->setInputs(1,1,0); break;
             case '7': if (backend) backend->setInputs(1,1,1); break;
-            case 'R': respond='1'; break;
+            case 'R': respond= backend ? (backend->getTdo() ? '1':'0') : '1'; break;
             default:
                 fprintf(stderr,"WARN unknown command '%c'\n", c);
         }

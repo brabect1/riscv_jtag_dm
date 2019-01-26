@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "remote_bitbang.h"
+#include "rbb_server.h"
 #include <iostream>
 #include <fcntl.h>
 #include <signal.h>
@@ -54,7 +54,7 @@ class verilator_backend: public rbb_backend {
 
     private:
         rbb_server* srv;
-        struct th_arg* a;
+        struct th_arg* arg;
 
     public:
 
@@ -121,13 +121,14 @@ class verilator_backend: public rbb_backend {
         }
 
         virtual void setInputs(int tck, int tms, int tdi) {
+//TODO missing vcd trace of the signals
             if (arg != NULL && arg->mutex != NULL) {
                 pthread_mutex_lock(arg->mutex);
-                //fprintf(stderr, "Setting: tck=%0d, tms=%0d, tdi=%0d\n", _tck, _tms, _tdi);
+//                fprintf(stderr, "Setting: tck=%0d, tms=%0d, tdi=%0d\n", tck, tms, tdi);
                 if (arg->top != NULL && !Verilated::gotFinish()) {
-                    arg->top->tck = _tck;
-                    arg->top->tms = _tms;
-                    arg->top->tdi = _tdi;
+                    arg->top->tck = tck;
+                    arg->top->tms = tms;
+                    arg->top->tdi = tdi;
                     arg->top->eval();
                 }
                 pthread_mutex_unlock(arg->mutex);
@@ -137,9 +138,10 @@ class verilator_backend: public rbb_backend {
         virtual int getTdo() {
             int ret;
             ret = 1;
-            if (arg != NULL && arg->mutex != NULL || arg->top == NULL) {
+            if (arg != NULL && arg->mutex != NULL && arg->top != NULL) {
                 pthread_mutex_lock(arg->mutex);
                 ret = Verilated::gotFinish() ? 1 : arg->top->tdo;
+//                fprintf(stderr,"tdo=%d/%d\n", ret, arg->top->tdo);
                 pthread_mutex_unlock(arg->mutex);
             }
             return ret;

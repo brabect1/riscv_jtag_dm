@@ -49,8 +49,6 @@ logic       dtm_resp_ready;
 logic[35:0] dtm_resp_bits;
 
 riscv_jtag_dtm_0p11 u_jtag_dtm (
-//    .tdo( ... ),
-    .tdo_oe( ),
     .trst(~trstn),
     .*
 );

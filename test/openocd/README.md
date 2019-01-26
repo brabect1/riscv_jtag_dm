@@ -25,3 +25,23 @@ Three processes need to run:
 
 - telnet session (that will connect to the OpenOCD server)
 
+```
+# Prerequisites
+# -------------
+sudo apt-get install libtool automake
+
+# Install OpenOCD
+# ---------------
+cd ...
+git clone  https://github.com/riscv/riscv-openocd && cd riscv-openocd
+./bootstrap
+./configure --enable-remote_bitbang
+make
+
+# Build Verilator model
+# ---------------------
+cd .../test/openocd/verilator
+make build
+
+...
+```
