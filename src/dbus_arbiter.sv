@@ -38,26 +38,28 @@ Change log:
 *
 * Acknowledges on the DTM Request ports and the DM Response port are implemented
 * so that they de-assert only after the request--acknowledge handshake has been
-* fully completed on the other side port. In addition, a DTM Request acknowledge
-* de-asserts only after the corresponding DM response completed. A sample waveform
-* may look like as follows:
+* fully completed on the other side port. The two channels, Request and Response,
+* have independent handshake, but another DTM Request will get acknowledged only
+* after the Response for the last Request has been handshaked.
 *
-*                      ___
-*     DTM0 Req. req __|   |______________
-*                        ______________
-*     DTM0 Req. ack ____|              |_  (DTM Request ack. extends over the complete DM Respense handshake)
+* A sample waveform may look like as follows:
+*
+*                      ___          ______
+*     DTM0 Req. req __|   |________|     
+*                        ________        _
+*     DTM0 Req. ack ____|        |______|  (DTM Request ack. extends over the DM Request handshake)
 *                        ____
-*     DM Req. req   ____|    |___________
+*     DM Req. req   ____|    |____________
 *                          ____
-*     DM Req. ack   ______|    |_________
+*     DM Req. ack   ______|    |__________
 *                          ___
-*     DM Rsp. req   ______|   |__________
+*     DM Rsp. req   ______|   |___________
 *                            ________
-*     DM Rsp. ack   ________|        |___  (DM Response ack. extends over the DTM Response handshake)
+*     DM Rsp. ack   ________|        |____ (DM Response ack. extends over the DTM Response handshake)
 *                            ___
-*     DTM0 Rsp. req ________|   |________
+*     DTM0 Rsp. req ________|   |_________
 *                              ____
-*     DTM0 Rsp. ack __________|    |_____
+*     DTM0 Rsp. ack __________|    |______
 *
 */
 module dbus_arbiter #(
